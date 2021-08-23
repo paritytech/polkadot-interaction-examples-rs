@@ -10,7 +10,8 @@ use serde_json::{ json, Value };
 
 #[tokio::main]
 async fn main() {
-    // find the hash
+    // find the hash of the latest block, so that we can query for
+    // details about the block using it.
     let client = reqwest::Client::new();
     let res = client.post("http://localhost:9933")
         .json(&json!{{
@@ -27,6 +28,8 @@ async fn main() {
     let block_hash = body["result"].as_str().unwrap();
     println!("Latest block hash: {}", block_hash);
 
+    // Get some details, passing the hash we obtained above as a parameter
+    // to the JSON RPC call.
     let res = client.post("http://localhost:9933")
         .json(&json!{{
             "id": 1,

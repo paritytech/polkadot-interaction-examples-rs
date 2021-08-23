@@ -19,6 +19,7 @@ reqwest = { version = "0.11.4", features = ["json"] }
 serde = "1.0.127"
 serde_json = "1.0.66"
 tokio = { version = "1.10.0", features = ["full"] }
-polkadot_primitives = { version = "0.9.9", git = "https://github.com/paritytech/polkadot", branch = "master", package = "polkadot-primitives" }
-sp_runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-runtime" }
-sp_core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-core" }
+
+# polkadot_primitives = { version = "0.9.9", git = "https://github.com/paritytech/polkadot", package = "polkadot-primitives" }
+sp_runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sp_core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }

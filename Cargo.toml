@@ -1,0 +1,24 @@
+[package]
+name = "polkadot-tx-examples"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "utils"
+path = "src/utils/lib.rs"
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.43"
+frame-metadata = { version = "14.0.0-rc.2", features = ["v13"] }
+hex = "0.4.3"
+parity-scale-codec = "2.2.0"
+reqwest = { version = "0.11.4", features = ["json"] }
+serde = "1.0.127"
+serde_json = "1.0.66"
+tokio = { version = "1.10.0", features = ["full"] }
+polkadot_primitives = { version = "0.9.9", git = "https://github.com/paritytech/polkadot", branch = "master", package = "polkadot-primitives" }
+sp_runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-runtime" }
+sp_core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-core" }

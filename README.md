@@ -13,7 +13,7 @@ git checkout f3f83e3f9db049f981066b3a94fa17cad673299f
 cargo run -- --tmp --dev
 ```
 
-Once you have this node running, in another terminal, pick an example you'd like to run and run it like so:
+Once you have this node running, in another terminal, pick an example you'd like to run from the `src/bin` folder and run it like so:
 
 ```
 cargo run --bin 01_basic

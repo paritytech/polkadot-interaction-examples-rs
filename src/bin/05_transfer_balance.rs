@@ -193,14 +193,15 @@ see that our extrinsic should be comprised of the following properties (in order
   - A variant index to say we want to provide an `AccoundId32` (`0: u8`)
   - The actual address (`[u8; 32]`)
   (But we'll just import and use the MultiAddress type, which encodes to the same as above)
-- A Balance, which is a `u128`
+- A Balance, which is a `u128` (but compact encoded; see SCALE encoding docs for details)
 
 So, a type like `(u8, u8, u8, [u8; 32], u128)` will encode to the correct bytes to represent the call we want to make.
 If a call doesn't need to be signed, we can just prepend a `None` signature to it (`0; u8`). If it does need to be
 signed, we'll need to gather and sign some details, including our call data, and prepend this signature/validity information.
+We can also attach extra information alongside the signature.
 
-When this is all constructed, we can SCALE encode, generate a hex string, and submit that to the node API. The code
-below runs through this.
+When that's obtained, we encode the data in a specific way, and then we can send it off to be executed. The code
+below runs through these steps.
 */
 
 use std::str::FromStr;
@@ -238,9 +239,10 @@ async fn main() {
         Era::Immortal,
         // How many prior transactions have occurred from this account? This
         // Helps protect against replay attacks or accidental double-submissions.
-        Compact::<u32>(0),
-        // I'm not sure what this is at the moment, but I've seen it just set to 0.
-        Compact::<u128>(0)
+        Compact(0u32),
+        // This is a tip, paid to the block producer (and in part the treasury)
+        // to help incentive it to include this transaction in the block. Can be 0.
+        Compact(500000000000000u128)
     );
 
     // A little more info we need for the additional info:
@@ -250,13 +252,16 @@ async fn main() {
     // We want to sign the payload against this additional information,
     // but we won't be including it in the final signed payload:
     let additional = (
+        // This TX won't be valid if it's not executed on the expected runtime:
         runtime_version.spec_version,
         runtime_version.transaction_version,
+        // Genesis hash, so TX is only valid on the correct chain:
         genesis_hash,
+        // The block hash of the "checkpoint" block. If the transaction is
+        // "immortal", use the genesis hash here. If it's mortal, this block hash
+        // should be equal to the block number provided in the Era information,
+        // so that the signature can verify that we're looking at the expected block.
         genesis_hash,
-        (),
-        (),
-        ()
     );
 
     // Sign the data with Alice's private key
@@ -275,73 +280,69 @@ async fn main() {
 
     // This is the format of the signature that we'll want to encode:
     let signature_to_encode = Some((
+        // The account ID that's signing the payload:
         MultiAddress::Id::<_,u32>(AccountKeyring::Alice.to_account_id()),
+        // The actual signature, computed above:
         MultiSignature::Sr25519(signature),
+        // Extra information to be included in the transaction:
         extra
     ));
 
-    // Encode it using logic borrowed from substrate-api-sidecar:
+    // Encode the extrinsic (there are a couple of subtleties to handle here):
     let payload_scale_encoded = encode_extrinsic(
         signature_to_encode,
         call
     );
     let payload_hex = format!("0x{}", hex::encode(&payload_scale_encoded));
 
-    println!("Submitting this payload: {}", payload_hex);
-
     // Submit it!
+    println!("Submitting this payload: {}", payload_hex);
     let res = rpc_to_localhost("author_submitExtrinsic", [payload_hex]).await.unwrap();
 
     println!("{:?}", res);
 }
 
+/// Fetch the genesis hash from the node.
 async fn get_genesis_hash() -> H256 {
     let genesis_hash_json = rpc_to_localhost("chain_getBlockHash", [0]).await.unwrap();
     let genesis_hash_hex = genesis_hash_json.as_str().unwrap();
     H256::from_str(genesis_hash_hex).unwrap()
 }
 
+/// Fetch runtime information from the node.
 async fn get_runtime_version() -> RuntimeVersion {
     let runtime_version_json = rpc_to_localhost("state_getRuntimeVersion", ()).await.unwrap();
     serde_json::from_value(runtime_version_json).unwrap()
 }
 
-/// Adapted from substrate-api-client; we'll mirror how they encode extrinsics:
+/// Encode the extrinsic into the expected format. De-optimised a little
+/// for simplicity, and taken from sp_runtime/src/generic/unchecked_extrinsic.rs
 fn encode_extrinsic<S: Encode ,C: Encode>(signature: Option<S>, call: C) -> Vec<u8> {
-    encode_with_vec_prefix::<(S,C), _>(|v| {
-        const V4: u8 = 4;
-        match signature.as_ref() {
-            Some(s) => {
-                v.push(V4 | 0b1000_0000);
-                s.encode_to(v);
-            }
-            None => {
-                v.push(V4 & 0b0111_1111);
-            }
-        }
-        call.encode_to(v);
-    })
-}
+    let mut tmp: Vec<u8> = vec![];
 
-/// Copied from substrate-api-client; we'll mirror how they encode extrinsics.
-fn encode_with_vec_prefix<T: Encode, F: Fn(&mut Vec<u8>)>(encoder: F) -> Vec<u8> {
-    let size = std::mem::size_of::<T>();
-    let reserve = match size {
-        0..=0b0011_1111 => 1,
-        0b0100_0000..=0b0011_1111_1111_1111 => 2,
-        _ => 4,
-    };
-    let mut v = Vec::with_capacity(reserve + size);
-    v.resize(reserve, 0);
-    encoder(&mut v);
+    // 1 byte version id; a combination of extrinsic version and
+    // whether or not there's a signature in the response.
+    const EXTRINSIC_VERSION: u8 = 4;
+    match signature.as_ref() {
+        Some(s) => {
+            tmp.push(EXTRINSIC_VERSION | 0b1000_0000);
+            s.encode_to(&mut tmp);
+        },
+        None => {
+            tmp.push(EXTRINSIC_VERSION & 0b0111_1111);
+        },
+    }
+    call.encode_to(&mut tmp);
 
-    // need to prefix with the total length to ensure it's binary compatible with
-    // Vec<u8>.
-    let mut length: Vec<()> = Vec::new();
-    length.resize(v.len() - reserve, ());
-    length.using_encoded(|s| {
-        v.splice(0..reserve, s.iter().cloned());
-    });
+    // We'll prefix the encoded data with it's length (compact encoding):
+    let compact_len = Compact(tmp.len() as u32);
 
-    v
+    // So, the output will consist of the compact encoded length,
+    // and then the 1 byte version+"is there a signature" byte,
+    // and then the signature (if any) and then encoded call data.
+    let mut output: Vec<u8> = vec![];
+    compact_len.encode_to(&mut output);
+    output.extend(tmp);
+
+    output
 }

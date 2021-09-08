@@ -345,26 +345,31 @@ async fn get_runtime_version() -> RuntimeVersion {
 fn encode_extrinsic<S: Encode ,C: Encode>(signature: Option<S>, call: C) -> Vec<u8> {
     let mut tmp: Vec<u8> = vec![];
 
-    // 1 byte version id; a combination of extrinsic version and
-    // whether or not there's a signature in the response.
+    // 1 byte for version ID + "is there a signature".
+    // The top bit is 1 if signature present, 0 if not.
+    // The remaining 7 bits encode the version number (here, 4).
     const EXTRINSIC_VERSION: u8 = 4;
     match signature.as_ref() {
         Some(s) => {
             tmp.push(EXTRINSIC_VERSION | 0b1000_0000);
+            // Encode the signature itself now if it's present:
             s.encode_to(&mut tmp);
         },
         None => {
             tmp.push(EXTRINSIC_VERSION & 0b0111_1111);
         },
     }
+
+    // Encode the call itself after this version+signature stuff.
     call.encode_to(&mut tmp);
 
     // We'll prefix the encoded data with it's length (compact encoding):
     let compact_len = Compact(tmp.len() as u32);
 
     // So, the output will consist of the compact encoded length,
-    // and then the 1 byte version+"is there a signature" byte,
-    // and then the signature (if any) and then encoded call data.
+    // and then the version+"is there a signature" byte,
+    // and then the signature (if any),
+    // and then encoded call data.
     let mut output: Vec<u8> = vec![];
     compact_len.encode_to(&mut output);
     output.extend(tmp);

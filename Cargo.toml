@@ -1,9 +1,7 @@
 [package]
-name = "polkadot-tx-examples"
+name = "polkadot-interaction-examples"
 version = "0.1.0"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 name = "utils"
@@ -25,9 +23,6 @@ sp_runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/subst
 sp_core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
 sp_keyring = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-keyring" }
 sp_version = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-version" }
-
-# We'll want some types from the polkadot runtime (concrete instantiation of the above) too:
-polkadot_runtime = { version = "0.9.9", git = "https://github.com/paritytech/polkadot.git", branch = "master", package = "polkadot-runtime" }
 
 # There are some types we want in the pallet crates (if we liked, we could just redefine them to save bringing these in):
 pallet_balances = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "pallet-balances" }

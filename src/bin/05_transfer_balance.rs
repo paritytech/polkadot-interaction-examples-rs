@@ -216,14 +216,19 @@ use parity_scale_codec::{ Compact, Encode };
 #[tokio::main]
 async fn main() {
 
-    // So, given the above, our call is composed of these values:
+    // First, we need to know which pallet, and which call in the pallet, we're
+    // actually calling. This equates to seeing which index inthe arrays in the
+    // metadata the "Balances" pallet and then the "transfer" call are at, but for
+    // simplicity I've just manually had a look and hard coded them here:
     let pallet_index: u8 = 5;
     let call_index: u8 = 0;
+
+    // The "transfer" call takes 2 arguments, which are as follows:
     let address = MultiAddress::Id::<_,u32>(AccountKeyring::Bob.to_account_id());
     let balance = Compact::from(123456789012345u128);
 
-    // Values are provided in the following order (pallet and call index, and then args).
-    // This encodes to the same format as using the Call variants directly would.
+    // We put the above data together and now we have something that will encode to the
+    // correct bytes for the "call" part of the extrinsic we'll submit:
     let call = (
         pallet_index,
         call_index,
@@ -231,8 +236,8 @@ async fn main() {
         balance,
     );
 
-    // Extra information related to the call. We'll need to include this information
-    // when we submit the call.
+    // As well as the call data above, we need to include some extra information along
+    // with our transaction:
     let extra = (
         // How long should this call "last" in the transaction pool before
         // being deemed "out of date" and discarded?
@@ -245,12 +250,12 @@ async fn main() {
         Compact(500000000000000u128)
     );
 
-    // A little more info we need for the additional info:
+    // Grab a little more info that we'll need for below:
     let runtime_version = get_runtime_version().await;
     let genesis_hash = get_genesis_hash().await;
 
-    // We want to sign the payload against this additional information,
-    // but we won't be including it in the final signed payload:
+    // This information won't be included in our payload, but is it part of the data
+    // that we'll sign, to help ensure that the TX is only valid in the right place.
     let additional = (
         // This TX won't be valid if it's not executed on the expected runtime:
         runtime_version.spec_version,
@@ -264,7 +269,7 @@ async fn main() {
         genesis_hash,
     );
 
-    // Sign the data with Alice's private key
+    // Now, we put the data we've gathered above together and sign it:
     let signature = {
         // Combine this data together and SCALE encode it:
         let full_unsigned_payload = (&call, &extra, &additional);
@@ -278,7 +283,8 @@ async fn main() {
         }
     };
 
-    // This is the format of the signature that we'll want to encode:
+    // This is the format of the signature part of the transaction. If we want to
+    // experiment with an unsigned transaction, we can set this to None::<()> instead.
     let signature_to_encode = Some((
         // The account ID that's signing the payload:
         MultiAddress::Id::<_,u32>(AccountKeyring::Alice.to_account_id()),
@@ -288,7 +294,8 @@ async fn main() {
         extra
     ));
 
-    // Encode the extrinsic (there are a couple of subtleties to handle here):
+    // Encode the extrinsic, which amounts to combining the signature and call information
+    // in a certain way:
     let payload_scale_encoded = encode_extrinsic(
         signature_to_encode,
         call

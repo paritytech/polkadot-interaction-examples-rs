@@ -6,15 +6,16 @@ cargo run --bin 02_latest_block
 ```
 */
 
-use serde_json::{ json, Value };
+use serde_json::{json, Value};
 
 #[tokio::main]
 async fn main() {
     // find the hash of the latest block, so that we can query for
     // details about the block using it.
     let client = reqwest::Client::new();
-    let res = client.post("http://localhost:9933")
-        .json(&json!{{
+    let res = client
+        .post("http://localhost:9933")
+        .json(&json! {{
             "id": 1,
             "jsonrpc": "2.0",
             // Get the hash of the latest block:
@@ -30,8 +31,9 @@ async fn main() {
 
     // Get some details, passing the hash we obtained above as a parameter
     // to the JSON RPC call.
-    let res = client.post("http://localhost:9933")
-        .json(&json!{{
+    let res = client
+        .post("http://localhost:9933")
+        .json(&json! {{
             "id": 1,
             "jsonrpc": "2.0",
             // Get details for the latest block:
@@ -62,7 +64,9 @@ async fn main() {
     // Armed with that type information, here's the code to decode and view:
 
     // 1. Get array of hex64'd SCALE encoded logs from the above response
-    let logs = body["result"]["block"]["header"]["digest"]["logs"].as_array().unwrap();
+    let logs = body["result"]["block"]["header"]["digest"]["logs"]
+        .as_array()
+        .unwrap();
 
     for log in logs {
         // 2. Get hex string for each log entry:
@@ -72,13 +76,11 @@ async fn main() {
         let log_bytes = hex::decode(&log_hex.trim_start_matches("0x")).unwrap();
 
         // 4. Decode into the type we've worked out:
-        use sp_runtime::DigestItem;
-        use sp_core::H256;
         use parity_scale_codec::Decode;
-        let log_entry = <DigestItem<H256>>::decode(&mut log_bytes.as_slice()).unwrap();
+        use sp_runtime::DigestItem;
+        let log_entry = DigestItem::decode(&mut log_bytes.as_slice()).unwrap();
 
         // 4. Prettify to JSON to log:
         println!("{:?}", log_entry);
     }
-
 }

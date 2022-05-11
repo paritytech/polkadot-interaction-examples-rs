@@ -10,19 +10,23 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.43"
-frame-metadata = { version = "14.0.0-rc.2", features = ["v13"] }
+frame-metadata = { version = "15.0.0", features = ["v13"] }
 hex = "0.4.3"
-parity-scale-codec = "2.2.0"
+parity-scale-codec = "3.0.0"
 reqwest = { version = "0.11.4", features = ["json"] }
 serde = "1"
 serde_json = "1"
 tokio = { version = "1.10.0", features = ["full"] }
+jsonrpsee = { version = "0.12.0", features = ["async-client", "client-ws-transport"] }
 
 # Various types and functions useful for interacting with substrate exist in these sp (substrate-primitives) crates:
-sp_runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
-sp_core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
-sp_keyring = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-keyring" }
-sp_version = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-version" }
+sp_runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sp_core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-core" }
+sp_keyring = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-keyring" }
+sp_version = { version = "5.0.0", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "sp-version" }
+
+# XCM utilized for the 06_storage_iter example.
+xcm = { version = "0.9", git = "https://github.com/paritytech/polkadot.git", branch = "master", package = "xcm" }
 
 # There are some types we want in the pallet crates (if we liked, we could just redefine them to save bringing these in):
 pallet_balances = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "master", package = "pallet-balances" }

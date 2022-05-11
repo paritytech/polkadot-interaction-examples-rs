@@ -24,9 +24,9 @@ cargo run --bin 03_metadata
 ```
 */
 
-use utils::rpc_to_localhost;
 use frame_metadata::RuntimeMetadataPrefixed;
 use parity_scale_codec::Decode;
+use utils::rpc_to_localhost;
 
 #[tokio::main]
 async fn main() {

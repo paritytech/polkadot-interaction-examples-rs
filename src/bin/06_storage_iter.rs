@@ -17,6 +17,12 @@ use utils::ws_client;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // The WebSocket client can be utilized for submitting request to the
+    // production nodes. This example is submitting the request to the localhost.
+    // If you want to make requests to a production node use:
+    // ```
+    // let client = ws_client("wss://rpc.polkadot.io:443").await?;
+    // ```
     let client = ws_client("ws://localhost:9944").await?;
 
     // The VersionNotifiers type of the XcmPallet is defined as:

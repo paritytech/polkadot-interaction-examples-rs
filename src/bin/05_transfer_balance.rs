@@ -220,16 +220,15 @@ following example constructs and sends off a "balances.transfer" extrinsic:
 
 use std::str::FromStr;
 
-use utils::rpc_to_localhost;
-use sp_core::{H256, blake2_256};
+use parity_scale_codec::{Compact, Encode};
+use sp_core::{blake2_256, H256};
 use sp_keyring::AccountKeyring;
-use sp_runtime::{MultiAddress, MultiSignature, generic::Era};
+use sp_runtime::{generic::Era, MultiAddress, MultiSignature};
 use sp_version::RuntimeVersion;
-use parity_scale_codec::{ Compact, Encode };
+use utils::rpc_to_localhost;
 
 #[tokio::main]
 async fn main() {
-
     // First, we need to know which pallet, and which call in the pallet, we're
     // actually calling. This equates to seeing which index in the arrays in the
     // metadata the "Balances" pallet and then the "transfer" call are at, but for
@@ -239,17 +238,12 @@ async fn main() {
 
     // The "transfer" call takes 2 arguments, which are as follows (if we wanted, we could
     // avoid using `MultiAddress` and encode a 0 u8 and then the account ID, but for simplicity..)
-    let address = MultiAddress::Id::<_,u32>(AccountKeyring::Bob.to_account_id());
+    let address = MultiAddress::Id::<_, u32>(AccountKeyring::Bob.to_account_id());
     let balance = Compact::from(123456789012345u128);
 
     // We put the above data together and now we have something that will encode to the
     // Same shape as the generated enum would have led to (variant indexes, then args):
-    let call = (
-        pallet_index,
-        call_index,
-        address,
-        balance,
-    );
+    let call = (pallet_index, call_index, address, balance);
 
     // As well as the call data above, we need to include some extra information along
     // with our transaction:
@@ -262,7 +256,7 @@ async fn main() {
         Compact(0u32),
         // This is a tip, paid to the block producer (and in part the treasury)
         // to help incentive it to include this transaction in the block. Can be 0.
-        Compact(500000000000000u128)
+        Compact(500000000000000u128),
     );
 
     // Grab a little more info that we'll need for below:
@@ -304,24 +298,23 @@ async fn main() {
     // experiment with an unsigned transaction here, we can set this to None::<()> instead.
     let signature_to_encode = Some((
         // The account ID that's signing the payload:
-        MultiAddress::Id::<_,u32>(AccountKeyring::Alice.to_account_id()),
+        MultiAddress::Id::<_, u32>(AccountKeyring::Alice.to_account_id()),
         // The actual signature, computed above:
         MultiSignature::Sr25519(signature),
         // Extra information to be included in the transaction:
-        extra
+        extra,
     ));
 
     // Encode the extrinsic, which amounts to combining the signature and call information
     // in a certain way:
-    let payload_scale_encoded = encode_extrinsic(
-        signature_to_encode,
-        call
-    );
+    let payload_scale_encoded = encode_extrinsic(signature_to_encode, call);
     let payload_hex = format!("0x{}", hex::encode(&payload_scale_encoded));
 
     // Submit it!
     println!("Submitting this payload: {}", payload_hex);
-    let res = rpc_to_localhost("author_submitExtrinsic", [payload_hex]).await.unwrap();
+    let res = rpc_to_localhost("author_submitExtrinsic", [payload_hex])
+        .await
+        .unwrap();
 
     // The result from this call is the hex value for the extrinsic hash.
     println!("{:?}", res);
@@ -336,13 +329,15 @@ async fn get_genesis_hash() -> H256 {
 
 /// Fetch runtime information from the node.
 async fn get_runtime_version() -> RuntimeVersion {
-    let runtime_version_json = rpc_to_localhost("state_getRuntimeVersion", ()).await.unwrap();
+    let runtime_version_json = rpc_to_localhost("state_getRuntimeVersion", ())
+        .await
+        .unwrap();
     serde_json::from_value(runtime_version_json).unwrap()
 }
 
 /// Encode the extrinsic into the expected format. De-optimised a little
 /// for simplicity, and taken from sp_runtime/src/generic/unchecked_extrinsic.rs
-fn encode_extrinsic<S: Encode ,C: Encode>(signature: Option<S>, call: C) -> Vec<u8> {
+fn encode_extrinsic<S: Encode, C: Encode>(signature: Option<S>, call: C) -> Vec<u8> {
     let mut tmp: Vec<u8> = vec![];
 
     // 1 byte for version ID + "is there a signature".
@@ -354,10 +349,10 @@ fn encode_extrinsic<S: Encode ,C: Encode>(signature: Option<S>, call: C) -> Vec<
             tmp.push(EXTRINSIC_VERSION | 0b1000_0000);
             // Encode the signature itself now if it's present:
             s.encode_to(&mut tmp);
-        },
+        }
         None => {
             tmp.push(EXTRINSIC_VERSION & 0b0111_1111);
-        },
+        }
     }
 
     // Encode the call itself after this version+signature stuff.

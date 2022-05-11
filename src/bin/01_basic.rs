@@ -10,17 +10,17 @@ cargo run --bin 01_basic
 ```
 */
 
-use serde_json::{ json, Value };
+use serde_json::{json, Value};
 
 #[tokio::main]
 async fn main() {
-
     let client = reqwest::Client::new();
 
     // See https://www.jsonrpc.org/specification for more information on
     // the JSON RPC 2.0 format that we use here to talk to nodes.
-    let res = client.post("http://localhost:9933")
-        .json(&json!{{
+    let res = client
+        .post("http://localhost:9933")
+        .json(&json! {{
             "id": 1,
             "jsonrpc": "2.0",
             "method": "rpc_methods"

@@ -9,16 +9,15 @@ cargo run --bin 04_storage
 ```
 */
 
+use parity_scale_codec::Decode;
+use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
+use sp_core::{crypto::AccountId32, hashing};
+use sp_keyring::AccountKeyring;
 use std::convert::TryInto;
 use utils::rpc_to_localhost;
-use sp_core::{ crypto::{ AccountId32 }, hashing };
-use sp_keyring::AccountKeyring;
-use parity_scale_codec::{ Decode };
-use sp_core::crypto::{ Ss58Codec, Ss58AddressFormat };
 
 #[tokio::main]
 async fn main() {
-
     {
         // We can look in metadata to see what's been stored. We note the "storage prefix"
         // and then "name" of the item we're interested in. First, we'll find out the total
@@ -40,7 +39,9 @@ async fn main() {
         println!("Balances TotalIssuance Hex: {}", storage_key_hex);
 
         // Finally, we send that hex string to the "state_getStorage" RPC call to query:
-        let result_hex = rpc_to_localhost("state_getStorage", (storage_key_hex,)).await.unwrap();
+        let result_hex = rpc_to_localhost("state_getStorage", (storage_key_hex,))
+            .await
+            .unwrap();
 
         // The result is a SCALE encoded value. What is the type of the value? Well, according to
         // the metadata, it's a type `T::Balance`. But what's that? Well, essentially, the Balances
@@ -77,9 +78,12 @@ async fn main() {
         storage_key.extend_from_slice(&storage_name_hashed);
         let storage_key_hex = format!("0x{}", hex::encode(&storage_key));
 
-        let results = rpc_to_localhost("state_getKeys", (storage_key_hex,)).await.unwrap();
+        let results = rpc_to_localhost("state_getKeys", (storage_key_hex,))
+            .await
+            .unwrap();
         let result_vec: Vec<Vec<u8>> = results
-            .as_array().unwrap()
+            .as_array()
+            .unwrap()
             .into_iter()
             .map(|json| json.as_str().unwrap())
             .map(|hex| hex::decode(hex.trim_start_matches("0x")).unwrap())
@@ -91,13 +95,16 @@ async fn main() {
         // accounts (we ss58 encode so that they match what you see in the UI for polkadot).
         println!("\nList of addresses known to system:");
         for res in result_vec {
-            let last32 = &res[res.len() - 32 ..];
+            let last32 = &res[res.len() - 32..];
             let last32_arr: [u8; 32] = last32.try_into().unwrap();
             let address: AccountId32 = last32_arr.into();
 
             // The address you see is basically the account ID + a version (ie "this is a polkadot address")
             // encoded into SS58 format (see https://github.com/paritytech/substrate/wiki/External-Address-Format-(SS58)):
-            println!("{}", address.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount));
+            println!(
+                "{}",
+                address.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount)
+            );
         }
     }
 
@@ -132,7 +139,10 @@ async fn main() {
         // if we like, we can print out Bobs address. This is basically the public address
         // + a version (ie "this is a polkadot address") encoded into SS58 format (see
         // https://github.com/paritytech/substrate/wiki/External-Address-Format-(SS58)):
-        println!("\nBobs address: {}", bobs_account_id.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount));
+        println!(
+            "\nBobs address: {}",
+            bobs_account_id.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount)
+        );
 
         // Hash things:
         let storage_prefix_hashed = hashing::twox_128(storage_prefix.as_bytes());
@@ -154,8 +164,11 @@ async fn main() {
         let storage_key_hex = format!("0x{}", hex::encode(&storage_key));
         println!("AccountId storage key hex: {}", storage_key_hex);
 
-        let result_hex = rpc_to_localhost("state_getStorage", (storage_key_hex,)).await.unwrap();
-        let result_scaled = hex::decode(result_hex.as_str().unwrap().trim_start_matches("0x")).unwrap();
+        let result_hex = rpc_to_localhost("state_getStorage", (storage_key_hex,))
+            .await
+            .unwrap();
+        let result_scaled =
+            hex::decode(result_hex.as_str().unwrap().trim_start_matches("0x")).unwrap();
 
         // If we look at how account data is stored, we find it's stored in the type
         // `AccountInfo<T::Index, T::AccountData>`. Remembering that `T` here will be the polkadot runtime,
@@ -168,9 +181,9 @@ async fn main() {
         //
         // Well, `Nonce` is just an alias for u32, and Balance is just an alias for `u128`, so we end up
         // wanting to decode our result into this type to read it:
-        type PolkadotAccountInfo = pallet_system::AccountInfo<u32, pallet_balances::AccountData<u128>>;
+        type PolkadotAccountInfo =
+            pallet_system::AccountInfo<u32, pallet_balances::AccountData<u128>>;
         let account_info = PolkadotAccountInfo::decode(&mut result_scaled.as_ref());
         println!("{:?}", account_info);
-
     }
 }

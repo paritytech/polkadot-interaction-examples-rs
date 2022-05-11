@@ -6,15 +6,33 @@ Run with:
 cargo run --bin 05_transfer_balance
 ```
 
-An extrinsic consists of call information (what function are we calling from which pallet, and which
-arguments does that function want to be given) and optionally (but likely) also signature information
-(who is submitting the extrinsic, the signature itself, and extra information about where/how long is
-it valid for). All of this information is SCALE encoded in a particular format, converted to a hex string,
-and submitted via JSONRPC to action the extrinsic.
+An extrinsic is something that ends up in a block. The data in an extrinsic describes a state change, such
+that a new node can download and replay all the blocks and end up in the same state. Extrinsics either
+come from the outside world ("transactions") or come from within the node itself ("inherents").
 
-Extrinsics are generated from code in the `substrate/frame` folder. For example, to transfer money from
-one account to another, we need to construst an extrinsic which ends up calling the `transfer` method
-in the Balances pallet (`substrate/frame/balances/src/lib.rs`), whose signature looks like:
+Transactions can be submitted via the RPC call "author_submitExtrinsic". They are hex encoded SCALE encoded
+bytes which take something like the following format:
+
+- Compact encoded number of SCALE encoded bytes following this.
+- 1 bit: a 0 if no signature is present, or a 1 if it is.
+- 7 bits: the transaction protocol version; these docs are all about version 4, and so expect that.
+- If there is a signature:
+  - a SCALE encoded `sp_runtime::MultiAddress::Id<AccountId32, u32>`; who is the transaction from.
+  - a SCALE encoded `sp_runtime::MultiSignature::S225519`; a signature (see the code for how this is made)
+  - a SCALE encoded `sp_runtime::generic::Era`; how long will this transaction live in the pool for.
+  - Compact encoded u32: how many transactions have occurred from the "from" address already.
+  - Compact encoded u128: a tip paid to the block producer.
+- The call data, which consists of:
+  - 1 byte: the pallet index we're calling into.
+  - 1 byte: the function in the pallet that we're calling.
+  - variable: the SCALE encoded parameters required by the function being called.
+
+The call data is the "meat" of the transaction and describes the actual thing we want done (eg transferring DOT).
+Look in the `substrate/frame` for the pallet code; exposed calls are decorated, and we can see the parameters
+they take. (Or, look in the metadata to see the same).
+
+For example, the call to transfer money from one account to another, is in in the Balances pallet
+(`substrate/frame/balances/src/lib.rs`), and looks like:
 
 ```no_run
 pub fn transfer(
@@ -45,177 +63,26 @@ the method in the pallet you'd like to call and the data to provide to it, but w
 contains this, and others, to describe all of the calls from every pallet. For a Polkadot node, we can see this
 enum by running `cargo doc --open` in `polkadot/runtime/polkadot` and finding the outer `Call` enum there.
 
-So, if we were to construct one of these enum variants we'd have part of the information we want to submit
-(the signature details being the other part). However, we don't actually need to include all of `polkadot`
-in order to have access to this generated enum; we just need to encode data that will have the same encoded
-shape as the enum.
+When constructing our call data to submit, our goal is to select the call we'd like to make from these, and
+create a SCALE encoded representation of that enum variant ourselves.
 
-With that all said, a running node can hand us metadata (see the example 03_metadata) which, as of V14 (which
-is soon to be released) will actually contain all of the type information needed to construct a valid extrinsic
-without us needing to dig through substrate/polkadot types to figure out what the concrete type of things like
-<T::Lookup as StaticLookup>::Source` or `T::Balance` are (which we'd need to do if constructing a balance
-transfer call).
+# Metadata
 
-So, how can we actually construct a valid extrinsic from the upcoming V14 metadata then?
+The metadata contains all of the information we need to know how to construct these transactions ourselves (and more).
+`jq` is useful for looking through it. Examples:
 
-Step 1: Construct our call data in a format that encodes to the same as the Call enum variant we'd want.
-Using some example typed metadata from `https://gist.github.com/ascjones/b76a5345930776ede61dd0f797792ed4`,
-let's see what we can find out about a call to transfer some balance.
-
-First, the "transfer" call in the "Balances" module looks a bit like this in the V14 metadata:
-
-```
-{
-    //...
-    "calls": {
-    "ty": 144,
-    "calls": [
-        {
-        "name": "transfer",
-        "arguments": [
-            {
-            "name": "dest",
-            "ty": 145
-            },
-            {
-            "name": "value",
-            "ty": 68
-            }
-        ],
-        "documentation": []
-        },
-        //...
-}
+```sh
+# Get the name and index of all pallets in the runtime:
+cargo run --bin 03_metadata | jq '.[1].V14.pallets[] | { name: .name, index: .index }'
+# get details of the pallet at some index (5, here):
+cargo run --bin 03_metadata | jq '.[1].V14.pallets[] | select(.index == 5)'
+# Get information about the extrinsic type (signed_extensions):
+cargo run --bin 03_metadata | jq '.[1].V14.extrinsic'
+# Get information abotu a specific type, eg type ID 676:
+cargo run --bin 03_metadata | jq '.[1].V14.types.types[676]'
 ```
 
-We can look up type #144 in the metadata to see what that looks like (I'll use `jq` to explore it, so we
-can view type #144 with `jq '.[1].V14.types.types[144]' ~/the-metadata.json`):
-
-```
-{
-    "path": [
-        "pallet_balances",
-        "pallet",
-        "Call"
-    ],
-    "params": [
-        {
-            "name": "T",
-            "type": null
-        },
-        {
-            "name": "I",
-            "type": null
-        }
-    ],
-    "def": {
-        "variant": {
-            "variants": [
-                {
-                    "name": "transfer",
-                    "fields": [
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 68,
-                            "typeName": "T::Balance"
-                        }
-                    ]
-                },
-                {
-                    "name": "set_balance",
-                    "fields": [
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 68,
-                            "typeName": "T::Balance"
-                        },
-                        {
-                            "type": 68,
-                            "typeName": "T::Balance"
-                        }
-                    ]
-                },
-                {
-                    "name": "force_transfer",
-                    "fields": [
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 68,
-                            "typeName": "T::Balance"
-                        }
-                    ]
-                },
-                {
-                    "name": "transfer_keep_alive",
-                    "fields": [
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 68,
-                            "typeName": "T::Balance"
-                        }
-                    ]
-                },
-                {
-                    "name": "transfer_all",
-                    "fields": [
-                        {
-                            "type": 145,
-                            "typeName": "<T::Lookup as StaticLookup>::Source"
-                        },
-                        {
-                            "type": 34,
-                            "typeName": "bool"
-                        }
-                    ]
-                }
-            ]
-        }
-    },
-    "docs": [
-        "r\"Contains one variant per dispatchable that can be called by an extrinsic."
-    ]
-}
-```
-
-This is describing the entire inner enum that's generated for the Balances pallet. We can look at the types
-of the two params for `transfer` (#145 and #168) to dig further into it (`jq '.[1].V14.types.types[145]'`
-and `jq '.[1].V14.types.types[168]'`). If we do this, we can surmize that our extrinsic should be comprised of
-the following properties (in order):
-
-- Outer call variant index; which pallet are we calling into. If we find the index of "Balances" pallet in the
-  result from 03_metadata, we can see that it's index 5, and that'll be a `u8` to mirror the variant tag).
-- Inner call enum variant index. We can see that the `transfer` call is the first variant from the metadata, so
-  that'll be index 0, also a `u8`.
-- A "MultiAddress", which we can dig into and see that it consists of:
-  - A variant index (which will be 0) to say we want to provide an `AccoundId32`
-  - The actual address (with the type `[u8; 32]`)
-  (But we'll just import and use the MultiAddress type for simplicity in our example, rather than manually
-  encoding something of the same shape)
-- A Balance, which is a `u128` (but compact encoded; see SCALE encoding docs for details on what this means).
-
-So, a type like `(u8, u8, u8, [u8; 32], u128)` will encode to the correct bytes to represent the call we want
-to make. If a call doesn't need to be signed, we can just prepend a `None` signature to it (`0; u8`). If it
-does need to be signed, we'll need to gather and sign some details, including our call data, and prepend this
-signature/validity information. We can also attach extra information alongside the signature.
-
-When that's obtained, we encode the data in a specific way, and then we can send it off to be executed. The
-following example constructs and sends off a "balances.transfer" extrinsic:
+Read the source below for more on this.
 */
 
 use std::str::FromStr;
@@ -236,24 +103,38 @@ async fn main() {
     let pallet_index: u8 = 5;
     let call_index: u8 = 0;
 
+    // The transaction is coming from Alice.
+    let from = AccountKeyring::Alice.to_account_id();
+
     // The "transfer" call takes 2 arguments, which are as follows (if we wanted, we could
     // avoid using `MultiAddress` and encode a 0 u8 and then the account ID, but for simplicity..)
     let address = MultiAddress::Id::<_, u32>(AccountKeyring::Bob.to_account_id());
     let balance = Compact::from(123456789012345u128);
+
+    // We're transferring the money from Alice. How many transfers has she made already? we need
+    // to include this number below; it has to be correct for the transfer to succeed.
+    let alice_nonce = get_nonce(&from).await;
 
     // We put the above data together and now we have something that will encode to the
     // Same shape as the generated enum would have led to (variant indexes, then args):
     let call = (pallet_index, call_index, address, balance);
 
     // As well as the call data above, we need to include some extra information along
-    // with our transaction:
+    // with our transaction. See the "signed_extension" types here to know what we need to
+    // include:
+    //
+    // cargo run --bin 03_metadata | jq '.[1].V14.extrinsic'
+    //
+    // Many "ty" props there will resolve to nothing, so can be ignored. The ones that don't
+    // resolve to nothing are the ones that encode to a non-zero number of bytes and need to
+    // therefore be included.
     let extra = (
         // How long should this call "last" in the transaction pool before
         // being deemed "out of date" and discarded?
         Era::Immortal,
         // How many prior transactions have occurred from this account? This
         // Helps protect against replay attacks or accidental double-submissions.
-        Compact(0u32),
+        Compact(alice_nonce),
         // This is a tip, paid to the block producer (and in part the treasury)
         // to help incentive it to include this transaction in the block. Can be 0.
         Compact(500000000000000u128),
@@ -265,6 +146,12 @@ async fn main() {
 
     // This information won't be included in our payload, but is it part of the data
     // that we'll sign, to help ensure that the TX is only valid in the right place.
+    // See the "signed_extension" types here to know what we need to include:
+    //
+    // cargo run --bin 03_metadata | jq '.[1].V14.extrinsic'
+    //
+    // Look at the "additional_signed" type IDs now. Any that resolve to a type that
+    // encodes to a non-zero number of bytes needs to be included.
     let additional = (
         // This TX won't be valid if it's not executed on the expected runtime version:
         runtime_version.spec_version,
@@ -298,7 +185,7 @@ async fn main() {
     // experiment with an unsigned transaction here, we can set this to None::<()> instead.
     let signature_to_encode = Some((
         // The account ID that's signing the payload:
-        MultiAddress::Id::<_, u32>(AccountKeyring::Alice.to_account_id()),
+        MultiAddress::Id::<_, u32>(from),
         // The actual signature, computed above:
         MultiSignature::Sr25519(signature),
         // Extra information to be included in the transaction:
@@ -333,6 +220,14 @@ async fn get_runtime_version() -> RuntimeVersion {
         .await
         .unwrap();
     serde_json::from_value(runtime_version_json).unwrap()
+}
+
+/// How many transactions has this account already made?
+async fn get_nonce(account: &sp_runtime::AccountId32) -> u32 {
+    let nonce_json = rpc_to_localhost("system_accountNextIndex", (account,))
+        .await
+        .unwrap();
+    serde_json::from_value(nonce_json).unwrap()
 }
 
 /// Encode the extrinsic into the expected format. De-optimised a little

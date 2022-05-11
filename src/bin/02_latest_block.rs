@@ -77,9 +77,8 @@ async fn main() {
 
         // 4. Decode into the type we've worked out:
         use parity_scale_codec::Decode;
-        use sp_core::H256;
         use sp_runtime::DigestItem;
-        let log_entry = <DigestItem<H256>>::decode(&mut log_bytes.as_slice()).unwrap();
+        let log_entry = DigestItem::decode(&mut log_bytes.as_slice()).unwrap();
 
         // 4. Prettify to JSON to log:
         println!("{:?}", log_entry);

@@ -63,7 +63,6 @@ async fn main() -> anyhow::Result<()> {
 
         // Obtain the byte representation of the key.
         let key_bytes = &key.0;
-        // The first 32 bytes are identical to our storage query key and are represented by:
         // The first 16 bytes of the key represent the `storage_prefix`.
         let inspected_bytes = &key_bytes[0..16];
         println!(

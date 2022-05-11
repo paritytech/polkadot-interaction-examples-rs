@@ -36,27 +36,12 @@ async fn main() {
 
     // Decode the hex value into bytes (which are the SCALE encoded metadata details):
     let metadata_hex = res.as_str().unwrap();
-    println!("Metadata hex: {:?}", metadata_hex);
     let metadata_bytes = hex::decode(&metadata_hex.trim_start_matches("0x")).unwrap();
 
     // Fortunately, we know what type the metadata is, so we are able to decode our SCALEd bytes to it:
     let decoded = RuntimeMetadataPrefixed::decode(&mut metadata_bytes.as_slice()).unwrap();
 
-    let metadata = match decoded.1 {
-        frame_metadata::RuntimeMetadata::V14(v14) => v14,
-        _ => panic!("ops inval metadata"),
-    };
-
-    // let mut tys: Vec<_> = metadata.types.types().iter().map(|ty| {
-    //     let name = ty.ty().path().segments().join("::");
-    //     (name, ty.id(), ty)
-    // }).collect();
-    // tys.sort_by_key(|(name, ..)| name.clone());
-    // for (t, id, _) in tys.iter() {
-    //     println!("ID {} {}", id, t);
-    // }
-    println!("\n");
     // We'll finally re-encode to JSON to make prettier output.
-    let output = serde_json::to_string_pretty(&metadata).unwrap();
+    let output = serde_json::to_string_pretty(&decoded).unwrap();
     println!("{}", output);
 }

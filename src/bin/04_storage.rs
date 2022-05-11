@@ -10,7 +10,7 @@ cargo run --bin 04_storage
 */
 
 use parity_scale_codec::Decode;
-use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
+use sp_core::crypto::{Ss58AddressFormatRegistry, Ss58Codec};
 use sp_core::{crypto::AccountId32, hashing};
 use sp_keyring::AccountKeyring;
 use std::convert::TryInto;
@@ -103,7 +103,8 @@ async fn main() {
             // encoded into SS58 format (see https://github.com/paritytech/substrate/wiki/External-Address-Format-(SS58)):
             println!(
                 "{}",
-                address.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount)
+                address
+                    .to_ss58check_with_version(Ss58AddressFormatRegistry::PolkadotAccount.into())
             );
         }
     }
@@ -141,7 +142,8 @@ async fn main() {
         // https://github.com/paritytech/substrate/wiki/External-Address-Format-(SS58)):
         println!(
             "\nBobs address: {}",
-            bobs_account_id.to_ss58check_with_version(Ss58AddressFormat::PolkadotAccount)
+            bobs_account_id
+                .to_ss58check_with_version(Ss58AddressFormatRegistry::PolkadotAccount.into())
         );
 
         // Hash things:

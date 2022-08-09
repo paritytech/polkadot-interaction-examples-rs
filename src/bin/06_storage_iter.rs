@@ -21,9 +21,9 @@ async fn main() -> anyhow::Result<()> {
     // production nodes. This example is submitting the request to the localhost.
     // If you want to make requests to a production node use:
     // ```
-    // let client = ws_client("wss://rpc.polkadot.io:443").await?;
+    let client = ws_client("ws://localhost:9944/polkadot").await?;
     // ```
-    let client = ws_client("ws://localhost:9944").await?;
+    // let client = ws_client("ws://localhost:9944").await?;
 
     // The VersionNotifiers type of the XcmPallet is defined as:
     //

@@ -104,7 +104,18 @@ async fn main() -> anyhow::Result<()> {
     println!("Partial fee:         {partial_fee}");
     assert_eq!((base_fee + len_fee + weight_fee).to_string(), partial_fee);
 
-    // NOTE:
+    // NOTE: When an extrinsic is submitted, it's actual weight ends up in
+    // ExtrinsicSuccess, as does a `paysFee` parameter. The node is free to
+    // set each of these to whatever it likes to modify the actual fee paid
+    // or refund it entirely with `PaysFee::No`.
+    //
+    // This, to calculate the actual fee paid on an extrinsic in a block, you
+    // must do something like:
+    //
+    // `fee = len_fee + base_fee + (weight_fee / wight * new_weight_from_ext_success)`
+    //
+    // Also note; this is only applicable to Polkadot and chains which copy the
+    // way that Polkadot does fees. Chains can do whatever they like, really.
 
     Ok(())
 }
